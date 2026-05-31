@@ -13,21 +13,23 @@ echo "=========================================="
 # ------------------------------------------
 # 1. System Update & Essential Packages
 # ------------------------------------------
-echo "[1/7] Updating system and installing essentials..."
+echo "[1/10] Updating system and installing essentials..."
 apt-get update -y
 apt-get upgrade -y
-apt-get install -y curl wget git build-essential software-properties-common ufw
+apt-get install -y \
+  curl wget git build-essential software-properties-common \
+  ufw unzip zip htop net-tools dnsutils ca-certificates gnupg lsb-release
 
 # ------------------------------------------
 # 2. Git Configuration
 # ------------------------------------------
-echo "[2/7] Configuring Git..."
+echo "[2/10] Configuring Git..."
 git config --global credential.helper store
 
 # ------------------------------------------
 # 3. Install NVM & Node.js 22
 # ------------------------------------------
-echo "[3/7] Installing NVM and Node.js 22..."
+echo "[3/10] Installing NVM and Node.js 22..."
 export NVM_DIR="/root/.nvm"
 
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash
@@ -55,7 +57,7 @@ echo "NPM version: $(npm -v)"
 # ------------------------------------------
 # 4. Install Global Node.js Tools
 # ------------------------------------------
-echo "[4/7] Installing PM2, pnpm..."
+echo "[4/10] Installing PM2, pnpm..."
 npm install -g pm2
 npm install -g pnpm
 
@@ -66,7 +68,7 @@ pm2 save
 # ------------------------------------------
 # 5. Install & Configure MySQL
 # ------------------------------------------
-echo "[5/7] Installing MySQL Server..."
+echo "[5/10] Installing MySQL Server..."
 apt-get install -y mysql-server
 
 systemctl start mysql
@@ -87,7 +89,7 @@ echo ""
 # ------------------------------------------
 # 6. Install & Configure Nginx
 # ------------------------------------------
-echo "[6/7] Installing Nginx..."
+echo "[6/10] Installing Nginx..."
 apt-get install -y nginx
 
 systemctl start nginx
@@ -97,12 +99,71 @@ echo "Nginx is running:"
 systemctl status nginx --no-pager
 
 # ------------------------------------------
-# 7. Configure Firewall (UFW)
+# 7. Install Redis
 # ------------------------------------------
-echo "[7/7] Configuring firewall..."
+echo "[7/10] Installing Redis..."
+apt-get install -y redis-server
+
+# Bind Redis to localhost only for security
+sed -i 's/^bind .*/bind 127.0.0.1 ::1/' /etc/redis/redis.conf
+# Enable supervised mode for systemd
+sed -i 's/^supervised .*/supervised systemd/' /etc/redis/redis.conf
+
+systemctl restart redis-server
+systemctl enable redis-server
+
+echo "Redis is running:"
+systemctl status redis-server --no-pager
+
+# ------------------------------------------
+# 8. Install Certbot (SSL)
+# ------------------------------------------
+echo "[8/10] Installing Certbot for SSL..."
+apt-get install -y certbot python3-certbot-nginx
+
+echo ">>> To obtain a certificate, run:"
+echo "    certbot --nginx -d yourdomain.com -d www.yourdomain.com"
+
+# ------------------------------------------
+# 9. Install Fail2ban (Intrusion Prevention)
+# ------------------------------------------
+echo "[9/10] Installing Fail2ban..."
+apt-get install -y fail2ban
+
+# Create a local jail config
+cat > /etc/fail2ban/jail.local << 'EOF'
+[DEFAULT]
+bantime  = 3600
+findtime = 600
+maxretry = 5
+
+[sshd]
+enabled = true
+port    = ssh
+logpath = %(sshd_log)s
+backend = %(sshd_backend)s
+
+[nginx-http-auth]
+enabled = true
+
+[nginx-limit-req]
+enabled = true
+EOF
+
+systemctl restart fail2ban
+systemctl enable fail2ban
+
+echo "Fail2ban is running:"
+systemctl status fail2ban --no-pager
+
+# ------------------------------------------
+# 10. Configure Firewall (UFW)
+# ------------------------------------------
+echo "[10/10] Configuring firewall..."
 ufw allow OpenSSH
 ufw allow 'Nginx Full'
-ufw allow 3306/tcp  # MySQL (remove if not needed externally)
+# MySQL should NOT be exposed publicly; connect via localhost or SSH tunnel
+# ufw allow 3306/tcp
 ufw --force enable
 
 echo ""
@@ -111,17 +172,21 @@ echo "  VPS Setup Complete!"
 echo "=========================================="
 echo ""
 echo "Installed:"
-echo "  - Git:    $(git --version)"
-echo "  - Node:   $(node -v)"
-echo "  - NPM:    $(npm -v)"
-echo "  - pnpm:   $(pnpm -v)"
-echo "  - PM2:    $(pm2 -v)"
-echo "  - MySQL:  $(mysql --version)"
-echo "  - Nginx:  $(nginx -v 2>&1)"
+echo "  - Git:      $(git --version)"
+echo "  - Node:     $(node -v)"
+echo "  - NPM:      $(npm -v)"
+echo "  - pnpm:     $(pnpm -v)"
+echo "  - PM2:      $(pm2 -v)"
+echo "  - MySQL:    $(mysql --version)"
+echo "  - Nginx:    $(nginx -v 2>&1)"
+echo "  - Redis:    $(redis-server --version)"
+echo "  - Certbot:  $(certbot --version 2>&1)"
+echo "  - Fail2ban: $(fail2ban-server --version 2>&1 | head -1)"
 echo ""
 echo "Next steps:"
 echo "  1. Run 'mysql_secure_installation' to secure MySQL"
-echo "  2. Configure Nginx sites in /etc/nginx/sites-available/"
-echo "  3. Deploy your app and manage with PM2"
-echo "  4. Set up SSL with: apt install certbot python3-certbot-nginx"
+echo "  2. Copy nginx configs from nginx/ to /etc/nginx/sites-available/"
+echo "  3. Deploy your app and manage with PM2 (see scripts/deploy.sh)"
+echo "  4. Issue an SSL cert: certbot --nginx -d yourdomain.com"
+echo "  5. Or use the helper: bash scripts/ssl-setup.sh yourdomain.com"
 echo ""
