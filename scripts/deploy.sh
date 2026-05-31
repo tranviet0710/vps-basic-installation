@@ -14,7 +14,7 @@ set -euo pipefail
 APP_NAME="${1:?Usage: $0 <app-name> <app-directory> [branch]}"
 APP_DIR="${2:?Usage: $0 <app-name> <app-directory> [branch]}"
 BRANCH="${3:-main}"
-TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
+TIMESTAMP=$(date +"%Y-%m-%dT%H:%M:%S")
 
 echo "============================================"
 echo "  Deploy: $APP_NAME"
@@ -50,7 +50,9 @@ fi
 # ── 3. Build (if applicable) ───────────────────────────────
 echo "[3/5] Building application..."
 if [ -f "package.json" ] && grep -q '"build"' package.json; then
-  npm run build 2>/dev/null || pnpm run build 2>/dev/null || true
+  if ! npm run build; then
+    echo "[WARN] Build script failed. Check output above."
+  fi
 else
   echo "  No build script found, skipping."
 fi
@@ -58,7 +60,10 @@ fi
 # ── 4. Run database migrations (if applicable) ────────────
 echo "[4/5] Running migrations (if any)..."
 if [ -f "package.json" ] && grep -q '"migrate"' package.json; then
-  npm run migrate 2>/dev/null || pnpm run migrate 2>/dev/null || true
+  if ! npm run migrate; then
+    echo "[ERROR] Migration failed. Aborting deploy to prevent runtime issues."
+    exit 1
+  fi
 else
   echo "  No migrate script found, skipping."
 fi

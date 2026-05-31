@@ -140,7 +140,7 @@ bash scripts/deploy.sh my-api /var/www/my-api main
 
 The script:
 1. Runs `git pull origin <branch>`
-2. Installs dependencies (`pnpm ci` / `yarn --frozen-lockfile` / `npm ci`)
+2. Installs dependencies (`pnpm install --frozen-lockfile` / `yarn --frozen-lockfile` / `npm ci`)
 3. Runs `npm run build` if a `build` script exists
 4. Runs `npm run migrate` if a `migrate` script exists
 5. Calls `pm2 reload <app-name>` (or starts it if new)

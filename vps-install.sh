@@ -162,7 +162,9 @@ systemctl status fail2ban --no-pager
 echo "[10/10] Configuring firewall..."
 ufw allow OpenSSH
 ufw allow 'Nginx Full'
-# MySQL should NOT be exposed publicly; connect via localhost or SSH tunnel
+# MySQL should NOT be exposed publicly — use SSH tunneling instead.
+# Uncomment the line below only if an external connection is strictly required
+# and you have restricted it to a specific IP via: ufw allow from <trusted-ip> to any port 3306
 # ufw allow 3306/tcp
 ufw --force enable
 
